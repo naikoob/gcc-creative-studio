@@ -106,7 +106,7 @@ resource "google_storage_bucket" "genmedia" {
   }
 
   cors {
-    origin          = [local.alb_origin]
+    origin          = distinct(compact([local.alb_origin, "https://${module.im8_network_alb.regional_alb_ip}"]))
     method          = ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"]
     response_header = ["Content-Type", "Access-Control-Allow-Origin", "x-goog-resumable", "Authorization", "Origin"]
     max_age_seconds = 3600
@@ -393,11 +393,17 @@ resource "google_cloud_run_v2_service" "backend" {
       }
       env {
         name  = "CORS_ORIGINS"
-        value = jsonencode([local.alb_origin])
+        value = jsonencode(distinct(compact([
+          local.alb_origin,
+          "https://${module.im8_network_alb.regional_alb_ip}"
+        ])))
       }
       env {
         name  = "FRONTEND_URL"
-        value = local.alb_origin
+        value = join(",", distinct(compact([
+          local.alb_origin,
+          "https://${module.im8_network_alb.regional_alb_ip}"
+        ])))
       }
       env {
         name  = "BACKEND_URL"

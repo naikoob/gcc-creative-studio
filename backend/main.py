@@ -74,7 +74,22 @@ def configure_cors(app):
             raise ValueError(
                 "FRONTEND_URL environment variable not set in production"
             )
-        allowed_origins.append(frontend_url)
+        for u in frontend_url.split(","):
+            cleaned = u.strip()
+            if cleaned and cleaned not in allowed_origins:
+                allowed_origins.append(cleaned)
+        cors_origins_env = getenv("CORS_ORIGINS")
+        if cors_origins_env:
+            try:
+                import json
+                parsed = json.loads(cors_origins_env)
+                if isinstance(parsed, list):
+                    for u in parsed:
+                        cleaned = str(u).strip()
+                        if cleaned and cleaned not in allowed_origins:
+                            allowed_origins.append(cleaned)
+            except Exception:
+                pass
     elif environment in ["development", "test", "local"]:
         allowed_origins.append("*")  # Allow all origins in development
     else:

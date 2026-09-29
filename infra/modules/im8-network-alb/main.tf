@@ -135,10 +135,10 @@ resource "google_compute_region_security_policy" "regional_waf" {
   rules {
     action      = "deny(403)"
     priority    = 1000
-    description = "OWASP CRS 3.3 SQL Injection protection (IM8 AS-1)"
+    description = "OWASP CRS 3.3 SQL Injection protection with JWT false-positive opt-out (IM8 AS-1)"
     match {
       expr {
-        expression = "evaluatePreconfiguredWaf('sqli-v33-stable')"
+        expression = "evaluatePreconfiguredWaf('sqli-v33-stable', {'opt_out_rule_ids': ['owasp-crs-v030301-id942421-sqli']})"
       }
     }
   }
