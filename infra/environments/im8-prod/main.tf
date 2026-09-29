@@ -78,8 +78,8 @@ module "im8_network_alb" {
   environment           = var.environment
   backend_service_name  = var.backend_service_name
   frontend_service_name = var.frontend_service_name
-  ssl_certificate_pem   = var.ssl_certificate_pem
-  ssl_private_key_pem   = var.ssl_private_key_pem
+  ssl_certificate_pem   = file(startswith(var.ssl_certificate_path, "/") ? var.ssl_certificate_path : "${path.module}/${var.ssl_certificate_path}")
+  ssl_private_key_pem   = file(startswith(var.ssl_private_key_path, "/") ? var.ssl_private_key_path : "${path.module}/${var.ssl_private_key_path}")
   enforce_sg_geofence   = var.enforce_sg_geofence
 
   depends_on = [google_project_service.apis]
@@ -269,6 +269,7 @@ resource "google_project_iam_member" "be_runtime_roles" {
     "roles/workflows.editor",
     "roles/workflows.invoker",
     "roles/iam.serviceAccountTokenCreator",
+    "roles/logging.logWriter",
   ])
   project = var.gcp_project_id
   role    = each.key

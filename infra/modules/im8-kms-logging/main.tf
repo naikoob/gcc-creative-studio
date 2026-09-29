@@ -67,6 +67,10 @@ resource "google_project_service_identity" "artifactregistry_agent" {
   service  = "artifactregistry.googleapis.com"
 }
 
+data "google_storage_project_service_account" "gcs_account" {
+  project = var.gcp_project_id
+}
+
 resource "google_kms_crypto_key_iam_member" "sql_cmek_binding" {
   crypto_key_id = google_kms_crypto_key.sql_cmek.id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
@@ -76,7 +80,7 @@ resource "google_kms_crypto_key_iam_member" "sql_cmek_binding" {
 resource "google_kms_crypto_key_iam_member" "storage_cmek_binding" {
   crypto_key_id = google_kms_crypto_key.storage_cmek.id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
+  member        = "serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"
 }
 
 resource "google_kms_crypto_key_iam_member" "artifact_cmek_binding" {

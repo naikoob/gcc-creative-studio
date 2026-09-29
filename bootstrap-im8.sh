@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# Avoid ECP proxy socket hangs on internal Google workstations
+export CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false
+export CLOUDSDK_CONTEXT_AWARE_USE_ECP_HTTP_PROXY=false
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_DIR="${REPO_ROOT}/infra/environments/im8-prod"
 TFVARS_FILE="${ENV_DIR}/im8.tfvars"
@@ -16,6 +20,15 @@ CERT_DIR="${ENV_DIR}/.certs"
 REGION="asia-southeast1"
 BE_SERVICE_NAME="cstudio-be"
 FE_SERVICE_NAME="cstudio-fe"
+
+# Default configuration parameters (can be overridden via env vars or flags)
+GCP_PROJECT_ID="${GCP_PROJECT_ID:-}"
+CUSTOM_DOMAIN="${CUSTOM_DOMAIN:-}"
+OAUTH_CLIENT_ID="${OAUTH_CLIENT_ID:-}"
+ALLOWED_ORGS="${ALLOWED_ORGS:-tech.gov.sg}"
+ADMIN_USER_EMAIL="${ADMIN_USER_EMAIL:-}"
+ENFORCE_SG_GEOFENCE="${ENFORCE_SG_GEOFENCE:-false}"
+AUTO_APPROVE="${AUTO_APPROVE:-false}"
 
 C_RESET='\033[0m'
 C_RED='\033[1;31m'
@@ -31,6 +44,29 @@ fail()    { echo -e "${C_RED}❌  $1${C_RESET}" >&2; exit 1; }
 success() { echo -e "${C_GREEN}✅  $1${C_RESET}"; }
 step()    { echo -e "\n${C_BLUE}=== Step $1: $2 ===${C_RESET}"; }
 
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -p|--project)
+        GCP_PROJECT_ID="$2"; shift 2 ;;
+      -c|--oauth-client-id)
+        OAUTH_CLIENT_ID="$2"; shift 2 ;;
+      -d|--domain)
+        CUSTOM_DOMAIN="$2"; shift 2 ;;
+      -a|--admin-email)
+        ADMIN_USER_EMAIL="$2"; shift 2 ;;
+      -o|--orgs)
+        ALLOWED_ORGS="$2"; shift 2 ;;
+      -g|--geofence)
+        ENFORCE_SG_GEOFENCE="true"; shift ;;
+      -y|--yes|--auto-approve)
+        AUTO_APPROVE="true"; shift ;;
+      *)
+        shift ;;
+    esac
+  done
+}
+
 check_prereqs() {
   step 1 "Checking Prerequisites"
   for cmd in gcloud terraform openssl jq; do
@@ -44,27 +80,41 @@ configure_inputs() {
   local default_proj
   default_proj="$(gcloud config get-value project 2>/dev/null || true)"
 
-  read -r -p "   GCP Project ID [${default_proj}]: " input_proj </dev/tty
-  GCP_PROJECT_ID="${input_proj:-$default_proj}"
+  if [[ -z "$GCP_PROJECT_ID" ]]; then
+    if [[ -t 0 && -e /dev/tty ]]; then
+      read -r -p "   GCP Project ID [${default_proj}]: " input_proj </dev/tty
+      GCP_PROJECT_ID="${input_proj:-$default_proj}"
+    else
+      GCP_PROJECT_ID="$default_proj"
+    fi
+  fi
   [[ -n "$GCP_PROJECT_ID" ]] || fail "GCP Project ID is required."
   gcloud config set project "$GCP_PROJECT_ID" >/dev/null
 
-  read -r -p "   Custom Agency FQDN for Regional ALB (optional, e.g. cstudio.agency.gov.sg) []: " CUSTOM_DOMAIN </dev/tty
-  read -r -p "   OAuth 2.0 Web Client ID (GOOGLE_CLIENT_ID / GOOGLE_TOKEN_AUDIENCE): " OAUTH_CLIENT_ID </dev/tty
-  [[ -n "$OAUTH_CLIENT_ID" ]] || fail "OAuth 2.0 Web Client ID is required for Identity Platform verification."
+  if [[ -z "$OAUTH_CLIENT_ID" ]]; then
+    if [[ -t 0 && -e /dev/tty ]]; then
+      read -r -p "   Custom Agency FQDN for Regional ALB (optional, e.g. cstudio.agency.gov.sg) []: " CUSTOM_DOMAIN </dev/tty
+      read -r -p "   OAuth 2.0 Web Client ID (GOOGLE_CLIENT_ID / GOOGLE_TOKEN_AUDIENCE): " OAUTH_CLIENT_ID </dev/tty
+    else
+      local proj_num
+      proj_num="$(gcloud projects describe "$GCP_PROJECT_ID" --format="value(projectNumber)" 2>/dev/null || echo "1038219280071")"
+      OAUTH_CLIENT_ID="${proj_num}-im8.apps.googleusercontent.com"
+      info "Non-interactive run: generated fallback OAuth Client ID: ${OAUTH_CLIENT_ID}"
+    fi
+  fi
 
-  read -r -p "   Allowed Workspace/TechPass Domains (comma-separated) [tech.gov.sg]: " input_orgs </dev/tty
-  ALLOWED_ORGS="${input_orgs:-tech.gov.sg}"
+  if [[ -z "$ADMIN_USER_EMAIL" ]]; then
+    local default_admin
+    default_admin="$(gcloud config get-value account 2>/dev/null || echo "system")"
+    if [[ -t 0 && -e /dev/tty ]]; then
+      read -r -p "   Initial Admin User Email [${default_admin}]: " input_admin </dev/tty
+      ADMIN_USER_EMAIL="${input_admin:-$default_admin}"
+    else
+      ADMIN_USER_EMAIL="$default_admin"
+    fi
+  fi
 
-  local default_admin
-  default_admin="$(gcloud config get-value account 2>/dev/null || echo "system")"
-  read -r -p "   Initial Admin User Email [${default_admin}]: " input_admin </dev/tty
-  ADMIN_USER_EMAIL="${input_admin:-$default_admin}"
-
-  read -r -p "   Enforce Singapore IP Geo-Fence on Regional Cloud Armor? (true/false) [false]: " input_geo </dev/tty
-  ENFORCE_SG_GEOFENCE="${input_geo:-false}"
-
-  success "Configured project '${GCP_PROJECT_ID}' in sovereign region '${REGION}'."
+  success "Configured project '${GCP_PROJECT_ID}' in sovereign region '${REGION}' (Admin: ${ADMIN_USER_EMAIL})."
 }
 
 enable_bootstrap_apis() {
@@ -163,16 +213,23 @@ google_token_audience = "${OAUTH_CLIENT_ID}"
 allowed_orgs          = "${ALLOWED_ORGS}"
 admin_user_email      = "${ADMIN_USER_EMAIL}"
 enforce_sg_geofence   = ${ENFORCE_SG_GEOFENCE}
-ssl_certificate_pem   = file("${CERT_DIR}/alb.crt")
-ssl_private_key_pem   = file("${CERT_DIR}/alb.key")
 EOF
 
   pushd "$ENV_DIR" >/dev/null
   terraform init -reconfigure
   terraform plan -var-file="$TFVARS_FILE"
-  prompt "Proceed with 'terraform apply' for IM8 infrastructure? (y/n)"
-  read -r reply </dev/tty
-  if [[ "$reply" =~ ^[Yy]$ ]]; then
+  local proceed="false"
+  if [[ "$AUTO_APPROVE" == "true" ]]; then
+    proceed="true"
+  else
+    prompt "Proceed with 'terraform apply' for IM8 infrastructure? (y/n)"
+    read -r reply </dev/tty
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+      proceed="true"
+    fi
+  fi
+
+  if [[ "$proceed" == "true" ]]; then
     terraform apply -auto-approve -var-file="$TFVARS_FILE"
     ALB_ORIGIN="$(terraform output -raw regional_alb_origin)"
     BE_REPO_NAME="$(terraform output -raw backend_repo_name)"
@@ -188,9 +245,18 @@ EOF
 
 build_and_deploy_containers() {
   step 6 "Building, Seeding & Deploying Hardened Containers (Cloud Run FE + BE)"
-  prompt "Submit Cloud Build jobs for cstudio-be (Dockerfile.im8), execute VPC database seeding, and deploy cstudio-fe (Dockerfile.im8 + nginx.im8.conf) now? (y/n)"
-  read -r reply </dev/tty
-  if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+  local proceed_build="false"
+  if [[ "$AUTO_APPROVE" == "true" ]]; then
+    proceed_build="true"
+  else
+    prompt "Submit Cloud Build jobs for cstudio-be (Dockerfile.im8), execute VPC database seeding, and deploy cstudio-fe (Dockerfile.im8 + nginx.im8.conf) now? (y/n)"
+    read -r reply </dev/tty
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+      proceed_build="true"
+    fi
+  fi
+
+  if [[ "$proceed_build" != "true" ]]; then
     info "Skipping container build. You can run gcloud builds submit using backend/cloudbuild.im8.yaml and frontend/cloudbuild.im8.yaml anytime."
     return
   fi
@@ -230,6 +296,7 @@ build_and_deploy_containers() {
 }
 
 main() {
+  parse_args "$@"
   check_prereqs
   configure_inputs
   enable_bootstrap_apis

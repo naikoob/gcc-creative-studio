@@ -38,8 +38,8 @@ variable "frontend_service_name" {
 
 variable "db_tier" {
   type        = string
-  description = "Cloud SQL machine tier (db-custom-2-7680 recommended for IM8 Production HA; db-custom-1-3840 for Sandbox)."
-  default     = "db-custom-2-7680"
+  description = "Cloud SQL machine tier (db-perf-optimized-N-2 for PostgreSQL 18 Enterprise Plus)."
+  default     = "db-perf-optimized-N-2"
 }
 
 variable "db_availability_type" {
@@ -60,16 +60,16 @@ variable "kms_protection_level" {
   default     = "HSM"
 }
 
-variable "ssl_certificate_pem" {
+variable "ssl_certificate_path" {
   type        = string
-  description = "PEM-encoded TLS certificate for the Regional External ALB."
-  sensitive   = true
+  description = "Path to PEM-encoded TLS certificate for the Regional External ALB (relative to module or absolute)."
+  default     = ".certs/alb.crt"
 }
 
-variable "ssl_private_key_pem" {
+variable "ssl_private_key_path" {
   type        = string
-  description = "PEM-encoded TLS private key for the Regional External ALB."
-  sensitive   = true
+  description = "Path to PEM-encoded TLS private key for the Regional External ALB (relative to module or absolute)."
+  default     = ".certs/alb.key"
 }
 
 variable "enforce_sg_geofence" {

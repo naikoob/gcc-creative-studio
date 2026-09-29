@@ -12,7 +12,7 @@ steps:
         '-f',
         'Dockerfile.im8',
         '-t',
-        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}',
         '.',
       ]
     dir: 'backend'
@@ -23,7 +23,7 @@ steps:
     args:
       [
         'push',
-        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}',
       ]
     waitFor: ['Build-IM8-Backend']
 
@@ -35,19 +35,20 @@ steps:
       - 'run'
       - 'deploy'
       - '${_SERVICE_NAME}'
-      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}'
       - '--region=${_REGION}'
       - '--ingress=internal-and-cloud-load-balancing'
       - '--quiet'
     waitFor: ['Push-IM8-Backend']
 
 images:
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}'
 
 substitutions:
   _SERVICE_NAME: 'cstudio-be'
   _REPO_NAME: 'cs-be-production-repo'
   _REGION: 'asia-southeast1'
+  _TAG: 'latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

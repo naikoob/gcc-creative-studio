@@ -14,7 +14,7 @@ backend_service_name  = "cstudio-be"
 frontend_service_name = "cstudio-fe"
 
 # Cloud SQL HA configuration (IM8 BR-1)
-db_tier              = "db-custom-2-7680"
+db_tier              = "db-perf-optimized-N-2"
 db_availability_type = "REGIONAL"
 db_name              = "creative_studio"
 

@@ -14,7 +14,7 @@ steps:
       - '_REPO_NAME=${_REPO_NAME}'
       - '_SERVICE_NAME=${_SERVICE_NAME}'
       - 'PROJECT_ID=${PROJECT_ID}'
-      - 'SHORT_SHA=${SHORT_SHA}'
+      - '_TAG=${_TAG}'
     secretEnv:
       - 'GOOGLE_CLIENT_ID'
     args:
@@ -25,15 +25,17 @@ steps:
           --build-arg BACKEND_URL="$${_BACKEND_URL}" \
           --build-arg GOOGLE_CLIENT_ID="$${GOOGLE_CLIENT_ID}" \
           --build-arg FIREBASE_PROJECT_ID="$${PROJECT_ID}" \
-          -t "$${_REGION}-docker.pkg.dev/$${PROJECT_ID}/$${_REPO_NAME}/$${_SERVICE_NAME}:$${SHORT_SHA}" \
+          -t "$${_REGION}-docker.pkg.dev/$${PROJECT_ID}/$${_REPO_NAME}/$${_SERVICE_NAME}:$${_TAG}" \
           .
 
   # Step 2: Push the container image to Google Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push-IM8-Frontend'
     args:
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      [
+        'push',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}',
+      ]
     waitFor: ['Build-IM8-Frontend']
 
   # Step 3: Deploy to Cloud Run (Ingress remains locked to internal-and-cloud-load-balancing)
@@ -44,20 +46,21 @@ steps:
       - 'run'
       - 'deploy'
       - '${_SERVICE_NAME}'
-      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}'
       - '--region=${_REGION}'
       - '--ingress=internal-and-cloud-load-balancing'
       - '--quiet'
     waitFor: ['Push-IM8-Frontend']
 
 images:
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:${_TAG}'
 
 substitutions:
   _SERVICE_NAME: 'cstudio-fe'
   _REPO_NAME: 'cs-fe-production-repo'
   _REGION: 'asia-southeast1'
   _BACKEND_URL: '/api'
+  _TAG: 'latest'
 
 availableSecrets:
   secretManager:
