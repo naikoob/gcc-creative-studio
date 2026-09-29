@@ -63,3 +63,9 @@ variable "rate_limit_rpm" {
   description = "Per-IP rate limit threshold (requests per minute) enforced by Regional Cloud Armor."
   default     = 600
 }
+
+variable "custom_domain" {
+  type        = string
+  description = "Optional custom FQDN for the application (e.g. creative-studio.bookian.demo.altostrat.com). When set, provisions a regional Google-managed certificate via Certificate Manager."
+  default     = ""
+}

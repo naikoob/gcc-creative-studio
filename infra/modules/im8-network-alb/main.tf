@@ -311,7 +311,10 @@ resource "google_compute_region_ssl_policy" "restricted_tls" {
   min_tls_version = "TLS_1_2"
 }
 
+# --- 7b. Regional SSL Certificates & Certificate Manager (IM8 DP-3, NS-1) ---
+
 resource "google_compute_region_ssl_certificate" "alb_cert" {
+  count       = var.custom_domain == "" ? 1 : 0
   name_prefix = "cstudio-im8-${var.environment}-cert-"
   project     = var.gcp_project_id
   region      = var.gcp_region
@@ -323,13 +326,38 @@ resource "google_compute_region_ssl_certificate" "alb_cert" {
   }
 }
 
+resource "google_certificate_manager_dns_authorization" "custom_domain_auth" {
+  count       = var.custom_domain != "" ? 1 : 0
+  name        = "cstudio-im8-${var.environment}-dns-auth"
+  location    = var.gcp_region
+  project     = var.gcp_project_id
+  domain      = var.custom_domain
+  description = "Regional DNS authorization for ${var.custom_domain}"
+}
+
+resource "google_certificate_manager_certificate" "custom_domain_cert" {
+  count       = var.custom_domain != "" ? 1 : 0
+  name        = "cstudio-im8-${var.environment}-managed-cert"
+  location    = var.gcp_region
+  project     = var.gcp_project_id
+  description = "Regional Google-managed certificate for ${var.custom_domain}"
+
+  managed {
+    domains = [var.custom_domain]
+    dns_authorizations = [
+      google_certificate_manager_dns_authorization.custom_domain_auth[0].id
+    ]
+  }
+}
+
 resource "google_compute_region_target_https_proxy" "https_proxy" {
-  name             = "cstudio-im8-${var.environment}-https-proxy"
-  project          = var.gcp_project_id
-  region           = var.gcp_region
-  url_map          = google_compute_region_url_map.unified_url_map.id
-  ssl_certificates = [google_compute_region_ssl_certificate.alb_cert.id]
-  ssl_policy       = google_compute_region_ssl_policy.restricted_tls.id
+  name                             = "cstudio-im8-${var.environment}-https-proxy"
+  project                          = var.gcp_project_id
+  region                           = var.gcp_region
+  url_map                          = google_compute_region_url_map.unified_url_map.id
+  ssl_certificates                 = var.custom_domain == "" ? [google_compute_region_ssl_certificate.alb_cert[0].id] : null
+  certificate_manager_certificates = var.custom_domain != "" ? [google_certificate_manager_certificate.custom_domain_cert[0].id] : null
+  ssl_policy                       = google_compute_region_ssl_policy.restricted_tls.id
 }
 
 resource "google_compute_forwarding_rule" "https_forwarding_rule" {

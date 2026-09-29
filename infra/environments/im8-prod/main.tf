@@ -39,6 +39,7 @@ locals {
     "iamcredentials.googleapis.com",
     "texttospeech.googleapis.com",
     "dlp.googleapis.com",
+    "certificatemanager.googleapis.com",
   ]
 
   alb_origin  = var.custom_domain != "" ? "https://${var.custom_domain}" : "https://${module.im8_network_alb.regional_alb_ip}"
@@ -76,6 +77,7 @@ module "im8_network_alb" {
   gcp_project_id        = var.gcp_project_id
   gcp_region            = var.gcp_region
   environment           = var.environment
+  custom_domain         = var.custom_domain
   backend_service_name  = var.backend_service_name
   frontend_service_name = var.frontend_service_name
   ssl_certificate_pem   = file(startswith(var.ssl_certificate_path, "/") ? var.ssl_certificate_path : "${path.module}/${var.ssl_certificate_path}")

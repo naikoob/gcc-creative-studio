@@ -40,3 +40,13 @@ output "frontend_repo_name" {
   value       = google_artifact_registry_repository.fe_repo.name
   description = "Frontend Artifact Registry repository name."
 }
+
+output "dns_auth_record_name" {
+  value       = module.im8_network_alb.dns_auth_record_name
+  description = "DNS Authorization CNAME record name to add to DNS zone for Google-managed certificate validation."
+}
+
+output "dns_auth_record_data" {
+  value       = module.im8_network_alb.dns_auth_record_data
+  description = "DNS Authorization CNAME record target/data to add to DNS zone for Google-managed certificate validation."
+}

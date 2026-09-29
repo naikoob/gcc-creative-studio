@@ -35,3 +35,13 @@ output "regional_waf_policy_id" {
   value       = google_compute_region_security_policy.regional_waf.id
   description = "Regional Cloud Armor WAF security policy ID."
 }
+
+output "dns_auth_record_name" {
+  value       = length(google_certificate_manager_dns_authorization.custom_domain_auth) > 0 ? google_certificate_manager_dns_authorization.custom_domain_auth[0].dns_resource_record[0].name : ""
+  description = "DNS Authorization CNAME record name to add to DNS zone for Google-managed certificate validation."
+}
+
+output "dns_auth_record_data" {
+  value       = length(google_certificate_manager_dns_authorization.custom_domain_auth) > 0 ? google_certificate_manager_dns_authorization.custom_domain_auth[0].dns_resource_record[0].data : ""
+  description = "DNS Authorization CNAME record target/data to add to DNS zone for Google-managed certificate validation."
+}
