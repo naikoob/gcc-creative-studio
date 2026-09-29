@@ -205,6 +205,17 @@ resource "google_sql_user" "iam_be_user" {
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
+resource "random_password" "postgres_admin_password" {
+  length  = 24
+  special = false
+}
+
+resource "google_sql_user" "postgres_admin" {
+  name     = "postgres"
+  instance = google_sql_database_instance.im8_postgres.name
+  password = random_password.postgres_admin_password.result
+}
+
 # ==============================================================================
 # 5. Service Accounts, CMEK Artifact Registry & Least-Privilege IAM
 # ==============================================================================
@@ -483,6 +494,10 @@ resource "google_cloud_run_v2_job" "seed_job" {
           name  = "ADMIN_USER_EMAIL"
           value = var.admin_user_email
         }
+        env {
+          name  = "ADMIN_DB_PASS"
+          value = google_sql_user.postgres_admin.password
+        }
       }
     }
   }
@@ -664,5 +679,49 @@ resource "google_access_context_manager_service_perimeter" "im8_perimeter" {
       "run.googleapis.com",
       "dlp.googleapis.com",
     ]
+  }
+}
+
+# ==============================================================================
+# 9. Cloud Build Builder Roles (Enables gcloud builds submit in fresh projects)
+# ==============================================================================
+resource "google_project_iam_member" "cloudbuild_builder_roles" {
+  for_each = toset([
+    "roles/run.admin",
+    "roles/iam.serviceAccountUser",
+    "roles/secretmanager.secretAccessor",
+    "roles/artifactregistry.writer",
+  ])
+  project = var.gcp_project_id
+  role    = each.key
+  member  = "serviceAccount:${data.google_project.current.number}@cloudbuild.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "compute_builder_roles" {
+  for_each = toset([
+    "roles/run.admin",
+    "roles/iam.serviceAccountUser",
+    "roles/secretmanager.secretAccessor",
+    "roles/artifactregistry.writer",
+    "roles/storage.admin",
+    "roles/logging.logWriter",
+  ])
+  project = var.gcp_project_id
+  role    = each.key
+  member  = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+}
+
+# ==============================================================================
+# 10. Organization Policy: Allow All Member Domains (For Cloud Run Ingress)
+# ==============================================================================
+resource "google_project_organization_policy" "allow_all_member_domains" {
+  count      = var.manage_iam_member_domains_org_policy ? 1 : 0
+  project    = var.gcp_project_id
+  constraint = "iam.allowedPolicyMemberDomains"
+
+  list_policy {
+    allow {
+      all = true
+    }
   }
 }

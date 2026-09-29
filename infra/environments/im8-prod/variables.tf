@@ -131,3 +131,9 @@ variable "admin_user_email" {
   description = "Initial administrator email seeded into the Creative Studio database and default workspace."
   default     = "system"
 }
+
+variable "manage_iam_member_domains_org_policy" {
+  type        = bool
+  description = "Whether to manage the iam.allowedPolicyMemberDomains organization policy on the project to allow Cloud Run invocations."
+  default     = true
+}
