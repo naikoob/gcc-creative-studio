@@ -457,7 +457,7 @@ resource "google_cloud_run_v2_job" "seed_job" {
 
       containers {
         image   = "us-docker.pkg.dev/cloudrun/container/hello:latest"
-        command = ["python", "-m", "bootstrap.bootstrap"]
+        command = ["python", "-m", "bootstrap.bootstrap_im8"]
 
         resources {
           limits = {
