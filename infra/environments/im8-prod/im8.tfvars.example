@@ -1,0 +1,42 @@
+# Copyright 2026 Google LLC
+# Example Terraform Variables for IM8-Compliant Production Environment (Pattern A)
+# Copy to im8.tfvars (gitignored) or let ./bootstrap-im8.sh generate it automatically.
+
+gcp_project_id = "YOUR_GCP_PROJECT_ID"
+gcp_region     = "asia-southeast1"
+environment    = "production"
+
+# Optional custom agency FQDN (e.g., "cstudio.agency.gov.sg").
+# Leave empty to use the Regional External ALB static IP directly.
+custom_domain = ""
+
+backend_service_name  = "cstudio-be"
+frontend_service_name = "cstudio-fe"
+
+# Cloud SQL HA configuration (IM8 BR-1)
+db_tier              = "db-custom-2-7680"
+db_availability_type = "REGIONAL"
+db_name              = "creative_studio"
+
+# Cloud KMS FIPS 140-3 Level 3 HSM (IM8 CK-1)
+kms_protection_level = "HSM"
+
+# Regional Cloud Armor Geo-Fence (set true to block non-SG IPs at edge)
+enforce_sg_geofence = false
+
+# Identity Platform / OAuth 2.0 Verification (IM8 IAM-2)
+google_token_audience = "YOUR_OAUTH_WEB_CLIENT_ID.apps.googleusercontent.com"
+allowed_orgs          = "tech.gov.sg"
+admin_user_email      = "admin@agency.gov.sg"
+
+# Optional Cloud Build GitHub Connection (leave empty to deploy directly via gcloud builds submit)
+github_conn_name   = ""
+github_repo_owner  = "naikoob"
+github_repo_name   = "gcc-creative-studio"
+github_branch_name = "im8"
+
+# Optional GovTech WOG GSOC / Jumpgate Pub/Sub topic for IM8 LM-12 log streaming
+wog_siem_pubsub_topic = ""
+
+# Optional Organization Access Context Manager Policy ID for VPC-SC (IM8 NS-2, DP-7)
+access_policy_id = ""

@@ -1,0 +1,68 @@
+# Copyright 2026 Google LLC
+# IM8-Compliant Frontend Cloud Build Pipeline (Cloud Run Pattern A)
+
+steps:
+  # Step 1: Build the hardened unprivileged Nginx SPA container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build-IM8-Frontend'
+    entrypoint: 'bash'
+    dir: 'frontend'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+      - '_BACKEND_URL=${_BACKEND_URL}'
+      - '_REGION=${_REGION}'
+      - '_REPO_NAME=${_REPO_NAME}'
+      - '_SERVICE_NAME=${_SERVICE_NAME}'
+      - 'PROJECT_ID=${PROJECT_ID}'
+      - 'SHORT_SHA=${SHORT_SHA}'
+    secretEnv:
+      - 'GOOGLE_CLIENT_ID'
+    args:
+      - '-c'
+      - |
+        docker build \
+          -f Dockerfile.im8 \
+          --build-arg BACKEND_URL="$${_BACKEND_URL}" \
+          --build-arg GOOGLE_CLIENT_ID="$${GOOGLE_CLIENT_ID}" \
+          --build-arg FIREBASE_PROJECT_ID="$${PROJECT_ID}" \
+          -t "$${_REGION}-docker.pkg.dev/$${PROJECT_ID}/$${_REPO_NAME}/$${_SERVICE_NAME}:$${SHORT_SHA}" \
+          .
+
+  # Step 2: Push the container image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push-IM8-Frontend'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+    waitFor: ['Build-IM8-Frontend']
+
+  # Step 3: Deploy to Cloud Run (Ingress remains locked to internal-and-cloud-load-balancing)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy-IM8-Frontend'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - '--region=${_REGION}'
+      - '--ingress=internal-and-cloud-load-balancing'
+      - '--quiet'
+    waitFor: ['Push-IM8-Frontend']
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+
+substitutions:
+  _SERVICE_NAME: 'cstudio-fe'
+  _REPO_NAME: 'cs-fe-production-repo'
+  _REGION: 'asia-southeast1'
+  _BACKEND_URL: '/api'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_CLIENT_ID/versions/latest
+      env: 'GOOGLE_CLIENT_ID'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

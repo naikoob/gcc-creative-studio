@@ -1,0 +1,53 @@
+# Copyright 2026 Google LLC
+# IM8-Compliant Backend Cloud Build Pipeline (CS-4 & NS-1 Locked Ingress)
+
+steps:
+  # Step 1: Build the hardened non-root container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build-IM8-Backend'
+    env: ['DOCKER_BUILDKIT=1']
+    args:
+      [
+        'build',
+        '-f',
+        'Dockerfile.im8',
+        '-t',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA',
+        '.',
+      ]
+    dir: 'backend'
+
+  # Step 2: Push the container image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push-IM8-Backend'
+    args:
+      [
+        'push',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA',
+      ]
+    waitFor: ['Build-IM8-Backend']
+
+  # Step 3: Deploy to Cloud Run with IM8 NS-1 ingress lockdown
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy-IM8-Backend'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - '--region=${_REGION}'
+      - '--ingress=internal-and-cloud-load-balancing'
+      - '--quiet'
+    waitFor: ['Push-IM8-Backend']
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+
+substitutions:
+  _SERVICE_NAME: 'cstudio-be'
+  _REPO_NAME: 'cs-be-production-repo'
+  _REGION: 'asia-southeast1'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

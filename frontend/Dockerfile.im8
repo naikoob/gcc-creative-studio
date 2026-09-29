@@ -1,0 +1,46 @@
+# Copyright 2026 Google LLC
+# IM8-Compliant Multi-Stage Frontend Dockerfile (CS-4 Non-Privileged Container)
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . /app/
+
+# Build-time injection so src/environments/environment.prod.ts remains untouched in git
+ARG BACKEND_URL="/api"
+ARG GOOGLE_CLIENT_ID=""
+ARG FIREBASE_API_KEY="im8-identity-platform-placeholder"
+ARG FIREBASE_AUTH_DOMAIN="localhost"
+ARG FIREBASE_PROJECT_ID="im8-project"
+ARG FIREBASE_STORAGE_BUCKET="im8-bucket"
+ARG FIREBASE_MESSAGING_SENDER_ID="000000000000"
+ARG FIREBASE_APP_ID="1:000000000000:web:000000000000"
+ARG FIREBASE_MEASUREMENT_ID="G-0000000000"
+
+RUN sed -i "s|BACKEND_URL_PLACEHOLDER|${BACKEND_URL}|g" src/environments/environment.prod.ts && \
+    sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|${GOOGLE_CLIENT_ID}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${FIREBASE_API_KEY}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${FIREBASE_PROJECT_ID}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${FIREBASE_APP_ID}|g" src/environments/environment.prod.ts && \
+    sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
+
+ENV NODE_OPTIONS="--max_old_space_size=4096"
+RUN npm run build -- --configuration=production
+
+# Stage 2: Unprivileged Nginx Runtime (IM8 CS-4)
+FROM nginxinc/nginx-unprivileged:alpine
+
+COPY --from=builder --chown=101:101 /app/dist/creative-studio/browser /usr/share/nginx/html
+COPY --from=builder --chown=101:101 /app/nginx.im8.conf /etc/nginx/conf.d/default.conf
+
+# Enforce non-root execution (UID 101 in nginxinc/nginx-unprivileged)
+USER 101
+
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]
