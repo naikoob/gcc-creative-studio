@@ -135,10 +135,10 @@ resource "google_compute_region_security_policy" "regional_waf" {
   rules {
     action      = "deny(403)"
     priority    = 1000
-    description = "OWASP CRS 3.3 SQL Injection protection with JWT false-positive opt-out (IM8 AS-1)"
+    description = "OWASP CRS 3.3 SQL Injection protection for web frontend (IM8 AS-1)"
     match {
       expr {
-        expression = "evaluatePreconfiguredWaf('sqli-v33-stable', {'opt_out_rule_ids': ['owasp-crs-v030301-id942421-sqli']})"
+        expression = "!request.path.startsWith('/api/') && evaluatePreconfiguredWaf('sqli-v33-stable')"
       }
     }
   }
@@ -147,10 +147,10 @@ resource "google_compute_region_security_policy" "regional_waf" {
   rules {
     action      = "deny(403)"
     priority    = 1001
-    description = "OWASP CRS 3.3 XSS protection (IM8 AS-1)"
+    description = "OWASP CRS 3.3 XSS protection for web frontend (IM8 AS-1)"
     match {
       expr {
-        expression = "evaluatePreconfiguredWaf('xss-v33-stable')"
+        expression = "!request.path.startsWith('/api/') && evaluatePreconfiguredWaf('xss-v33-stable')"
       }
     }
   }
@@ -159,10 +159,10 @@ resource "google_compute_region_security_policy" "regional_waf" {
   rules {
     action      = "deny(403)"
     priority    = 1002
-    description = "OWASP CRS 3.3 RCE protection (IM8 AS-1)"
+    description = "OWASP CRS 3.3 RCE protection for web frontend (IM8 AS-1)"
     match {
       expr {
-        expression = "evaluatePreconfiguredWaf('rce-v33-stable')"
+        expression = "!request.path.startsWith('/api/') && evaluatePreconfiguredWaf('rce-v33-stable')"
       }
     }
   }
@@ -171,10 +171,10 @@ resource "google_compute_region_security_policy" "regional_waf" {
   rules {
     action      = "deny(403)"
     priority    = 1003
-    description = "OWASP CRS 3.3 LFI protection (IM8 AS-1)"
+    description = "OWASP CRS 3.3 LFI protection for web frontend (IM8 AS-1)"
     match {
       expr {
-        expression = "evaluatePreconfiguredWaf('lfi-v33-stable')"
+        expression = "!request.path.startsWith('/api/') && evaluatePreconfiguredWaf('lfi-v33-stable')"
       }
     }
   }
