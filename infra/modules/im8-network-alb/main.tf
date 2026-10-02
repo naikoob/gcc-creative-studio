@@ -138,7 +138,7 @@ resource "google_compute_region_security_policy" "regional_waf" {
     description = "OWASP CRS 3.3 SQL Injection protection for web frontend (IM8 AS-1)"
     match {
       expr {
-        expression = "!request.path.startsWith('/api/') && evaluatePreconfiguredWaf('sqli-v33-stable')"
+        expression = "!request.path.startsWith('/api/') && evaluatePreconfiguredWaf('sqli-v33-stable', {'opt_out_rule_ids': ['owasp-crs-v030301-id942421-sqli', 'owasp-crs-v030301-id942200-sqli', 'owasp-crs-v030301-id942260-sqli']})"
       }
     }
   }
